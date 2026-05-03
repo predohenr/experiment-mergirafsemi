@@ -1,0 +1,8 @@
+path,name;;;;;;
+https://github.com/kubernetes/kubernetes,kubernetes;;;;;;
+https://github.com/etcd-io/etcd,etcd;;;;;;
+https://github.com/moby/moby,moby;;;;;;
+https://github.com/prometheus/prometheus,prometheus;;;;;;
+https://github.com/minio/minio,minio;;;;;;
+https://github.com/jesseduffield/lazygit,lazygit;;;;;;
+https://github.com/traefik/traefik,traefik;;;;;;

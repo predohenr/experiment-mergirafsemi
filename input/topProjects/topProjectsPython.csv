@@ -1,0 +1,8 @@
+path,name
+https://github.com/AUTOMATIC1111/stable-diffusion-webui,stable-diffusion-webui
+https://github.com/huggingface/transformers,transformers
+https://github.com/yt-dlp/yt-dlp,yt-dlp
+https://github.com/ytdl-org/youtube-dl,youtube-dl
+https://github.com/langchain-ai/langchain,langchain
+https://github.com/pytorch/pytorch,pytorch
+https://github.com/django/django,django
