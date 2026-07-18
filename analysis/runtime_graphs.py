@@ -112,14 +112,13 @@ if not df_global.empty:
     
     global_order = [formatted_names[t] for t in chart_tools if formatted_names[t] in df_global['Tool'].unique()]
     
-    ax_box = sns.boxplot(
-        x='Time (ms)', 
-        y='Tool', 
-        data=df_global, 
-        palette="Set2",
-        order=global_order,
-        linewidth=1.5,
-        fliersize=3
+    ax_box = pt.RainCloud(
+            x='Tool', y='Time (ms)', 
+            data=pd.DataFrame(df_global), 
+            palette="Set2", 
+            order=global_order,
+            bw=0.2, width_viol=0.6, orient='h', alpha=0.6, 
+            dodge=False, pointplot=False, move=0.2
     )
     
     # Displaying global median values
@@ -128,11 +127,16 @@ if not df_global.empty:
         if pd.notna(med_global) and med_global > 0:
             ax_box.text(
                 med_global, i - 0.25, f" {med_global:.1f} ms ", 
-                va='center', ha='center', fontsize=12, fontweight='bold', color='black',
+                va='center', ha='center', 
+                fontsize=16,
+                fontweight='bold', color='black',
                 bbox=dict(facecolor='white', alpha=0.9, edgecolor='black', boxstyle='round,pad=0.2')
             )
 
-    plt.xlabel('Time (ms)')
+    ax_box.tick_params(axis='y', labelsize=18)
+    ax_box.tick_params(axis='x', labelsize=16)
+
+    plt.xlabel('Time (ms)', fontsize=18) # <-- Label do eixo X maior
     plt.ylabel('')
     plt.xscale('log')
     plt.grid(True, which="both", ls="--", alpha=0.3)

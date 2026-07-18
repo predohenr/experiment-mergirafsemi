@@ -19,9 +19,6 @@ def get_latest_execution_folder(base_path="../executions"):
 EXECUTION_DIR = get_latest_execution_folder()
 print(f"Using data from: {EXECUTION_DIR}")
 
-# =====================================================================
-# 1. PARSING BUILD SHEET
-# =====================================================================
 print("Loading raw_github_builds.csv...")
 BUILDS_FILE = os.path.join(EXECUTION_DIR, "raw_github_builds.csv")
 
@@ -59,9 +56,6 @@ for _, row in df_builds.iterrows():
 
 df_build_tools = pd.DataFrame(build_tools_data)
 
-# =====================================================================
-# 1.5. LOADING FALSE-FALSE NEGATIVES LIST
-# =====================================================================
 print("Loading why_build_failed.csv...")
 REASONS_FILE = os.path.join(EXECUTION_DIR, "why_build_failed.csv")
 forgiven_builds = set()
@@ -80,9 +74,6 @@ if os.path.exists(REASONS_FILE):
 else:
     print("Warning: why_build_failed.csv not found.")
 
-# =====================================================================
-# 2. LOADING PARENTS MAPPING
-# =====================================================================
 print("Loading commit_parents.csv...")
 PARENTS_FILE = os.path.join(EXECUTION_DIR, "commit_parents.csv")
 parents_map = {}
@@ -91,9 +82,6 @@ if os.path.exists(PARENTS_FILE):
     for _, row in df_parents.iterrows():
         parents_map[(row['project'], row['commit'])] = [str(row['parent1']), str(row['parent2'])]
 
-# =====================================================================
-# 3. VALIDATION FUNCTION
-# =====================================================================
 def verify_correctness(row, tool):
     status = str(row.get(f'status_{tool}')).strip()
     if status != 'SUCCESS_WITHOUT_CONFLICTS':
@@ -129,31 +117,51 @@ def verify_correctness(row, tool):
                 
         return False
 
-# =====================================================================
-# 4. PROCESSING BY LANGUAGE AND METRICS CALCULATION
-# =====================================================================
 rq1_data, rq2_data, rq3_data = [], [], []
 
-def calc_pairwise(df_lang, tool_a, tool_b):
+def calc_pairwise(df_lang, tool_a, tool_b, lang_name=""):
     if f'status_{tool_a}' not in df_lang.columns or f'status_{tool_b}' not in df_lang.columns:
         return 0, 0, 0, 0
 
     mask_a_conf_b_succ = (df_lang[f'status_{tool_a}'] == 'SUCCESS_WITH_CONFLICTS') & (df_lang[f'status_{tool_b}'] == 'SUCCESS_WITHOUT_CONFLICTS')
     df_c1 = df_lang[mask_a_conf_b_succ]
     
-    afp_a = len(df_c1[df_c1[f'is_valid_{tool_b}'] == True])
-    afn_b = len(df_c1[df_c1[f'is_valid_{tool_b}'] == False])
+    df_afp_a = df_c1[df_c1[f'is_valid_{tool_b}'] == True]
+    df_afn_b = df_c1[df_c1[f'is_valid_{tool_b}'] == False]
+    
+    afp_a = len(df_afp_a)
+    afn_b = len(df_afn_b)
 
     mask_b_conf_a_succ = (df_lang[f'status_{tool_b}'] == 'SUCCESS_WITH_CONFLICTS') & (df_lang[f'status_{tool_a}'] == 'SUCCESS_WITHOUT_CONFLICTS')
     df_c2 = df_lang[mask_b_conf_a_succ]
     
-    afp_b = len(df_c2[df_c2[f'is_valid_{tool_a}'] == True])
-    afn_a = len(df_c2[df_c2[f'is_valid_{tool_a}'] == False])
+    df_afp_b = df_c2[df_c2[f'is_valid_{tool_a}'] == True]
+    df_afn_a = df_c2[df_c2[f'is_valid_{tool_a}'] == False]
+    
+    afp_b = len(df_afp_b)
+    afn_a = len(df_afn_a)
+
+    if lang_name:
+        out_dir = os.path.join(EXECUTION_DIR, "detailed_fp_fn_reports")
+        os.makedirs(out_dir, exist_ok=True)
+        cols = ['project', 'commit', 'path']
+        
+        if not df_afp_a.empty: 
+            df_afp_a[cols].to_csv(os.path.join(out_dir, f"{lang_name}_{tool_a}_aFP_vs_{tool_b}.csv"), index=False)
+        if not df_afn_b.empty: 
+            df_afn_b[cols].to_csv(os.path.join(out_dir, f"{lang_name}_{tool_b}_aFN_vs_{tool_a}.csv"), index=False)
+        if not df_afp_b.empty: 
+            df_afp_b[cols].to_csv(os.path.join(out_dir, f"{lang_name}_{tool_b}_aFP_vs_{tool_a}.csv"), index=False)
+        if not df_afn_a.empty: 
+            df_afn_a[cols].to_csv(os.path.join(out_dir, f"{lang_name}_{tool_a}_aFN_vs_{tool_b}.csv"), index=False)
 
     return afp_a, afn_a, afp_b, afn_b
 
 for lang in languages:
     tools_file = os.path.join(EXECUTION_DIR, "combined_csv", f"tools_{lang}.csv")
+        
+    if not os.path.exists(tools_file):
+        continue
         
     df = pd.read_csv(tools_file)
     df.columns = df.columns.str.strip()
@@ -181,22 +189,22 @@ for lang in languages:
             df[f'is_valid_{tool}'] = df.apply(lambda r: verify_correctness(r, tool), axis=1)
 
     if lang == 'java':
-        afp_semi, afn_semi, afp_plus, afn_plus = calc_pairwise(df, 'mergiraf_semi', 'mergiraf_semi_plus')
+        afp_semi, afn_semi, afp_plus, afn_plus = calc_pairwise(df, 'mergiraf_semi', 'mergiraf_semi_plus', lang_name=lang)
         rq1_data.append({
             'Lang': lang.upper(), 
             'aFP_MergirafSemi': afp_semi, 'aFN_MergirafSemi': afn_semi, 
             'aFP_MergirafSemi+': afp_plus, 'aFN_MergirafSemi+': afn_plus
         })
 
-    afp_semi_rq2, afn_semi_rq2, afp_estruturado, afn_estruturado = calc_pairwise(df, 'mergiraf_semi', 'mergiraf')
+    afp_semi_rq2, afn_semi_rq2, afp_estruturado, afn_estruturado = calc_pairwise(df, 'mergiraf_semi', 'mergiraf', lang_name=lang)
     rq2_data.append({
         'Lang': lang.upper(), 
         'aFP_MergirafSemi': afp_semi_rq2, 'aFN_MergirafSemi': afn_semi_rq2, 
         'aFP_Structured': afp_estruturado, 'aFN_Structured': afn_estruturado
     })
 
-    afp_s3m, afn_s3m, afp_semi_rq3a, afn_semi_rq3a = calc_pairwise(df, 's3m', 'mergiraf_semi')
-    afp_semi_rq3b, afn_semi_rq3b, afp_diff3, afn_diff3 = calc_pairwise(df, 'mergiraf_semi', 'diff3')
+    afp_s3m, afn_s3m, afp_semi_rq3a, afn_semi_rq3a = calc_pairwise(df, 's3m', 'mergiraf_semi', lang_name=lang)
+    afp_semi_rq3b, afn_semi_rq3b, afp_diff3, afn_diff3 = calc_pairwise(df, 'mergiraf_semi', 'diff3', lang_name=lang)
 
     rq3_data.append({
         'Lang': lang.upper(), 
@@ -206,9 +214,6 @@ for lang in languages:
         'aFP_Diff3(vs_Semi)': afp_diff3, 'aFN_Diff3(vs_Semi)': afn_diff3
     })
 
-# =====================================================================
-# 5. RESULTS DISPLAY
-# =====================================================================
 print("="*90)
 print("RQ1: What is the impact of node ordering configuration on the accuracy of MergirafSemi?")
 print("     Direct Comparison: MergirafSemi vs MergirafSemi+")
